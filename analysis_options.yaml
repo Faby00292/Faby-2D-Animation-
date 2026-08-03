@@ -1,0 +1,10 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    # We intentionally use long-stable APIs (Matrix4.translate/scale,
+    # ReorderableListView.onReorder, RadioListTile.groupValue, etc.) so the app
+    # compiles across a wide range of Flutter versions. Silence the resulting
+    # deprecation notices on newer SDKs.
+    deprecated_member_use: ignore
+    todo: ignore

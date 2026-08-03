@@ -1,0 +1,26 @@
+name: faby_2d_animation
+description: Faby 2D Animation — a modern frame-by-frame 2D animation editor.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  provider: ^6.1.2
+  path_provider: ^2.1.3
+  shared_preferences: ^2.2.3
+  uuid: ^4.4.0
+  vector_math: ^2.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
