@@ -24,7 +24,9 @@ in the roadmap below.
   - **Right panel**: brush color, size, opacity, hardness and a ruler toggle.
   - **Drawing engine**: freehand strokes with per-stroke color, size, opacity
     and softness (hardness → blur); eraser cuts within its own layer.
-  - **Timeline**: frame thumbnails with add / delete.
+  - **Timeline**: frame thumbnails with add / delete, **copy / paste**,
+    **duplicate**, **insert**, **extend-across-frames**, per-frame **hold /
+    duration**, **drag-and-drop reordering** and **multi-frame selection**.
   - **Layers**: up to 10 layers with visibility, lock, opacity and add / delete.
 - **Persistence** — projects are saved to device storage and restored on
   relaunch.
@@ -65,7 +67,7 @@ flutter test         # widget smoke test
 
 - **Phase 2** ✅ — persistence; full color picker (RGB/HEX/HSV/wheel/palette/
   history/eyedropper); 8 brush types + custom brushes; spacing/smoothing.
-- **Phase 3** — full timeline (copy/paste/duplicate/insert/hold/duration,
+- **Phase 3** ✅ — full timeline (copy/paste/duplicate/insert/hold/duration,
   drag-reorder, multi-select, extend-across-frames).
 - **Phase 4** — full layers (rename/reorder/merge/duplicate).
 - **Phase 5** — onion skin.

@@ -37,6 +37,8 @@ class EditorController extends ChangeNotifier {
   int _seq = 0;
   Stroke? _activeStroke;
   final List<Stroke> _redoStack = <Stroke>[];
+  Frame? _clipboardFrame;
+  final Set<String> _selectedFrameIds = <String>{};
 
   String _id(String prefix) =>
       '$prefix${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
@@ -227,6 +229,175 @@ class EditorController extends ChangeNotifier {
       currentFrameIndex = project.frames.length - 1;
     }
     currentLayerIndex = 0;
+    _redoStack.clear();
+    notifyListeners();
+  }
+
+  // --- Frame clipboard / duplication / insertion / reordering ---
+  bool get canPaste => _clipboardFrame != null;
+
+  Stroke _cloneStroke(Stroke s) => Stroke(
+        points: List<Offset>.of(s.points),
+        color: s.color,
+        width: s.width,
+        opacity: s.opacity,
+        hardness: s.hardness,
+        brushType: s.brushType,
+        spacing: s.spacing,
+        seed: s.seed,
+        isEraser: s.isEraser,
+      );
+
+  Frame _cloneFrame(Frame source) => Frame(
+        id: _id('frame_'),
+        holdCount: source.holdCount,
+        layers: [
+          for (final l in source.layers)
+            Layer(
+              id: _id('layer_'),
+              name: l.name,
+              opacity: l.opacity,
+              isVisible: l.isVisible,
+              isLocked: l.isLocked,
+              strokes: [for (final s in l.strokes) _cloneStroke(s)],
+            ),
+        ],
+      );
+
+  void copyFrame([int? index]) {
+    final i = index ?? currentFrameIndex;
+    _clipboardFrame = _cloneFrame(project.frames[i]);
+    notifyListeners();
+  }
+
+  void pasteFrame() {
+    final clip = _clipboardFrame;
+    if (clip == null) return;
+    project.frames.insert(currentFrameIndex + 1, _cloneFrame(clip));
+    currentFrameIndex += 1;
+    currentLayerIndex = 0;
+    _redoStack.clear();
+    notifyListeners();
+  }
+
+  void duplicateFrame([int? index]) {
+    final i = index ?? currentFrameIndex;
+    project.frames.insert(i + 1, _cloneFrame(project.frames[i]));
+    currentFrameIndex = i + 1;
+    currentLayerIndex = 0;
+    _redoStack.clear();
+    notifyListeners();
+  }
+
+  /// Inserts a blank frame at the current position (before the active frame),
+  /// which becomes the new active frame.
+  void insertBlankFrame() {
+    final layer = Layer(id: _id('layer_'), name: 'Layer 1');
+    final frame = Frame(id: _id('frame_'), layers: <Layer>[layer]);
+    project.frames.insert(currentFrameIndex, frame);
+    currentLayerIndex = 0;
+    _redoStack.clear();
+    notifyListeners();
+  }
+
+  /// Duplicates the active frame [count] times immediately after it, so a
+  /// drawing can be extended across several frames at once.
+  void extendFrame(int count) {
+    if (count <= 0) return;
+    final source = project.frames[currentFrameIndex];
+    for (var k = 0; k < count; k++) {
+      project.frames.insert(currentFrameIndex + 1 + k, _cloneFrame(source));
+    }
+    notifyListeners();
+  }
+
+  /// Reorders a frame. [newIndex] is already adjusted for the removal of the
+  /// item at [oldIndex] (matching [ReorderableListView.onReorderItem]).
+  void reorderFrames(int oldIndex, int newIndex) {
+    final active = project.frames[currentFrameIndex];
+    final moved = project.frames.removeAt(oldIndex);
+    project.frames.insert(newIndex, moved);
+    currentFrameIndex = project.frames.indexOf(active);
+    clearFrameSelection();
+    _redoStack.clear();
+    notifyListeners();
+  }
+
+  // --- Frame hold / duration ---
+  void setFrameHold(int index, int hold) {
+    project.frames[index].holdCount = hold.clamp(1, 99);
+    notifyListeners();
+  }
+
+  void changeFrameHold(int index, int delta) =>
+      setFrameHold(index, project.frames[index].holdCount + delta);
+
+  /// Total number of playback slots (sum of frame holds).
+  int get totalFrameSlots {
+    var total = 0;
+    for (final f in project.frames) {
+      total += f.holdCount;
+    }
+    return total;
+  }
+
+  /// Estimated duration in seconds at the project's frame rate.
+  double get durationSeconds => totalFrameSlots / project.fps;
+
+  // --- Multi-frame selection ---
+  bool get hasFrameSelection => _selectedFrameIds.isNotEmpty;
+  int get selectedFrameCount => _selectedFrameIds.length;
+  bool isFrameSelected(String id) => _selectedFrameIds.contains(id);
+
+  void toggleFrameSelected(String id) {
+    if (!_selectedFrameIds.add(id)) {
+      _selectedFrameIds.remove(id);
+    }
+    notifyListeners();
+  }
+
+  void clearFrameSelection() {
+    if (_selectedFrameIds.isEmpty) return;
+    _selectedFrameIds.clear();
+    notifyListeners();
+  }
+
+  void duplicateSelectedFrames() {
+    if (_selectedFrameIds.isEmpty) return;
+    final sources = <Frame>[
+      for (final f in project.frames)
+        if (_selectedFrameIds.contains(f.id)) f,
+    ];
+    // Insert from last to first so earlier indices stay valid.
+    for (final src in sources.reversed) {
+      final idx = project.frames.indexOf(src);
+      project.frames.insert(idx + 1, _cloneFrame(src));
+    }
+    clearFrameSelection();
+    _redoStack.clear();
+    notifyListeners();
+  }
+
+  void deleteSelectedFrames() {
+    if (_selectedFrameIds.isEmpty) return;
+    final active = project.frames[currentFrameIndex];
+    final remaining = <Frame>[
+      for (final f in project.frames)
+        if (!_selectedFrameIds.contains(f.id)) f,
+    ];
+    if (remaining.isEmpty) {
+      // Always keep at least one frame.
+      _selectedFrameIds.clear();
+      notifyListeners();
+      return;
+    }
+    project.frames
+      ..clear()
+      ..addAll(remaining);
+    final activeIdx = project.frames.indexOf(active);
+    currentFrameIndex = activeIdx >= 0 ? activeIdx : project.frames.length - 1;
+    currentLayerIndex = 0;
+    _selectedFrameIds.clear();
     _redoStack.clear();
     notifyListeners();
   }
