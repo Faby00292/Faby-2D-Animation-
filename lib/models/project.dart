@@ -1,3 +1,4 @@
+import 'audio_track.dart';
 import 'frame.dart';
 import 'project_format.dart';
 
@@ -9,6 +10,7 @@ class Project {
     required this.format,
     required this.fps,
     List<Frame>? frames,
+    this.audio,
     DateTime? createdAt,
   })  : frames = frames ?? <Frame>[],
         createdAt = createdAt ?? DateTime.now();
@@ -21,6 +23,10 @@ class Project {
   int fps;
 
   final List<Frame> frames;
+
+  /// Optional imported audio track.
+  AudioTrack? audio;
+
   final DateTime createdAt;
 
   Map<String, dynamic> toJson() => {
@@ -30,6 +36,7 @@ class Project {
         'fps': fps,
         'createdAt': createdAt.toIso8601String(),
         'frames': [for (final f in frames) f.toJson()],
+        if (audio != null) 'audio': audio!.toJson(),
       };
 
   factory Project.fromJson(Map<String, dynamic> json) => Project(
@@ -44,5 +51,8 @@ class Project {
           for (final f in (json['frames'] as List? ?? const []))
             Frame.fromJson(f as Map<String, dynamic>),
         ],
+        audio: json['audio'] == null
+            ? null
+            : AudioTrack.fromJson(json['audio'] as Map<String, dynamic>),
       );
 }

@@ -6,6 +6,7 @@ import '../../models/project.dart';
 import '../../state/editor_controller.dart';
 import '../../state/project_store.dart';
 import '../../theme/app_theme.dart';
+import 'import_sheet.dart';
 import 'layers_panel.dart';
 import 'left_toolbar.dart';
 import 'onion_settings_sheet.dart';
@@ -93,7 +94,8 @@ class _EditorScreenState extends State<EditorScreen> {
                   controller: _controller,
                 ),
                 onOpenLayers: () => _scaffoldKey.currentState?.openEndDrawer(),
-                onMenu: () => _comingSoon('Menu'),
+                onMenu: () =>
+                    ImportSheet.show(context, controller: _controller),
                 onExport: () => _comingSoon('Export'),
               ),
               Expanded(

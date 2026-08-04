@@ -1,9 +1,14 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
+import '../drawing/decoded_images.dart';
+import '../models/audio_track.dart';
 import '../models/brush_preset.dart';
 import '../models/brush_type.dart';
 import '../models/frame.dart';
 import '../models/layer.dart';
+import '../models/layer_image.dart';
 import '../models/project.dart';
 import '../models/stroke.dart';
 import '../models/tool.dart';
@@ -11,7 +16,9 @@ import '../models/tool.dart';
 /// Holds all mutable editor state for a single [Project]: the active frame and
 /// layer, brush settings, the in-progress stroke, and undo/redo history.
 class EditorController extends ChangeNotifier {
-  EditorController(this.project);
+  EditorController(this.project) {
+    _decodeProjectImages();
+  }
 
   final Project project;
 
@@ -546,6 +553,82 @@ class EditorController extends ChangeNotifier {
       ..clear()
       ..addAll(reordered);
     currentLayerIndex = layers.indexOf(active);
+    notifyListeners();
+  }
+
+  // --- Import (images / GIF frames / audio) ---
+  Future<void> _decodeProjectImages() async {
+    var decodedAny = false;
+    for (final frame in project.frames) {
+      for (final layer in frame.layers) {
+        for (final image in layer.images) {
+          if (!DecodedImages.has(image.id)) {
+            await DecodedImages.load(image.id, image.bytes);
+            decodedAny = true;
+          }
+        }
+      }
+    }
+    if (decodedAny) notifyListeners();
+  }
+
+  /// Positions an image fitted (contain) and centered within the canvas.
+  LayerImage _fitImage(String id, Uint8List png, int width, int height) {
+    final cw = project.format.width.toDouble();
+    final ch = project.format.height.toDouble();
+    final scale = (cw / width < ch / height) ? cw / width : ch / height;
+    return LayerImage(
+      id: id,
+      bytes: png,
+      srcWidth: width,
+      srcHeight: height,
+      dx: (cw - width * scale) / 2,
+      dy: (ch - height * scale) / 2,
+      scale: scale,
+    );
+  }
+
+  /// Imports a still image onto a new layer of the current frame (or the
+  /// current layer if the frame is already at the layer cap).
+  Future<void> addImageLayer(Uint8List png, int width, int height) async {
+    final id = _id('img_');
+    final image = _fitImage(id, png, width, height);
+    if (canAddLayer) {
+      final layer = Layer(
+        id: _id('layer_'),
+        name: 'Image ${currentFrame.layers.length + 1}',
+        images: [image],
+      );
+      currentFrame.layers.add(layer);
+      currentLayerIndex = currentFrame.layers.length - 1;
+    } else {
+      currentLayer.images.add(image);
+    }
+    await DecodedImages.load(id, png);
+    notifyListeners();
+  }
+
+  /// Imports decoded animation frames (e.g. from a GIF) as new frames, each on
+  /// its own layer, inserted after the current frame.
+  Future<void> addImageFrames(
+    List<({Uint8List png, int width, int height})> frames,
+  ) async {
+    for (final f in frames) {
+      final id = _id('img_');
+      final image = _fitImage(id, f.png, f.width, f.height);
+      final layer = Layer(id: _id('layer_'), name: 'Layer 1', images: [image]);
+      final frame = Frame(id: _id('frame_'), layers: <Layer>[layer]);
+      project.frames.insert(currentFrameIndex + 1, frame);
+      currentFrameIndex += 1;
+      await DecodedImages.load(id, f.png);
+    }
+    currentLayerIndex = 0;
+    _redoStack.clear();
+    notifyListeners();
+  }
+
+  void setAudioTrack(AudioTrack? track) {
+    project.audio = track;
     notifyListeners();
   }
 }

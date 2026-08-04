@@ -73,8 +73,8 @@ class TopToolbar extends StatelessWidget {
             onPressed: onOpenLayers,
           ),
           IconButton(
-            icon: const Icon(Icons.more_vert),
-            tooltip: 'Menu',
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: 'Import',
             onPressed: onMenu,
           ),
           Padding(

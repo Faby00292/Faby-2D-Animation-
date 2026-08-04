@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/brush_type.dart';
 import '../models/frame.dart';
 import '../models/stroke.dart';
+import 'decoded_images.dart';
 
 /// A neighbouring frame rendered as a tinted onion-skin ghost beneath the
 /// current frame.
@@ -82,6 +83,26 @@ class DrawingPainter extends CustomPainter {
         pageRect,
         Paint()..color = Colors.white.withValues(alpha: layer.opacity),
       );
+      for (final image in layer.images) {
+        final decoded = DecodedImages.get(image.id);
+        if (decoded == null) continue; // still decoding; repaints when ready
+        canvas.drawImageRect(
+          decoded,
+          Rect.fromLTWH(
+            0,
+            0,
+            decoded.width.toDouble(),
+            decoded.height.toDouble(),
+          ),
+          Rect.fromLTWH(
+            image.dx,
+            image.dy,
+            image.displayWidth,
+            image.displayHeight,
+          ),
+          Paint()..filterQuality = FilterQuality.medium,
+        );
+      }
       for (final stroke in layer.strokes) {
         _drawStroke(canvas, stroke);
       }
