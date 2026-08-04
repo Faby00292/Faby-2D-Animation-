@@ -4,10 +4,12 @@ A professional frame-by-frame 2D animation editor for **Android and iOS**, built
 with Flutter — a modern, minimalist take on apps like FlipaClip, with a dark
 theme, turquoise accents (`#55E4C1`), glassmorphism panels and Material 3.
 
-This repository currently contains the **foundation + a working vertical slice**:
-the project scaffolding plus an end-to-end flow from the start page to a
-functional drawing workspace. The remaining features are stubbed and scheduled
-in the roadmap below.
+This repository implements the full feature roadmap (Phases 1–7): a working
+end-to-end app from the start page through a functional drawing workspace,
+timeline, layers, onion skin, media import, playback and export. The only
+deferred items are MP4 import/export (which need a native video codec) and a
+move from `SharedPreferences` to file-based storage for large projects — see
+the roadmap below.
 
 ## Implemented in this slice
 
@@ -41,6 +43,11 @@ in the roadmap below.
 - **Import** — PNG/JPG images (onto a new layer), animated **GIFs** (each GIF
   frame becomes a project frame) and **audio** (copied into app storage). MP4
   import is stubbed pending a native video decoder.
+- **Playback** — play / pause / loop through frames at the project frame rate,
+  honoring per-frame holds, with the imported audio track playing along.
+- **Export** — render the animation to an **animated GIF** (honoring holds and
+  fps) or the current frame to **PNG**, then share via the system share sheet.
+  MP4 export is stubbed pending a native encoder.
 
 ## Architecture
 
@@ -79,4 +86,5 @@ flutter test         # widget smoke test
 - **Phase 5** ✅ — onion skin.
 - **Phase 6** 🚧 — import PNG/JPG + GIF (any length) + audio done; MP4 frame
   extraction pending a native (FFmpeg) decoder.
-- **Phase 7** — export/render + playback.
+- **Phase 7** ✅ — export/render (GIF + PNG) + playback (with audio). MP4
+  export pending a native encoder.

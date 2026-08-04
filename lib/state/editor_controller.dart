@@ -631,4 +631,14 @@ class EditorController extends ChangeNotifier {
     project.audio = track;
     notifyListeners();
   }
+
+  /// Shows a frame during playback without disturbing edit/undo state.
+  void previewFrame(int index) {
+    if (index < 0 || index >= project.frames.length) return;
+    currentFrameIndex = index;
+    if (currentLayerIndex >= currentFrame.layers.length) {
+      currentLayerIndex = currentFrame.layers.length - 1;
+    }
+    notifyListeners();
+  }
 }

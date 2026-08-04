@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +9,7 @@ import '../../models/project.dart';
 import '../../state/editor_controller.dart';
 import '../../state/project_store.dart';
 import '../../theme/app_theme.dart';
+import 'export_sheet.dart';
 import 'import_sheet.dart';
 import 'layers_panel.dart';
 import 'left_toolbar.dart';
@@ -32,6 +36,15 @@ class _EditorScreenState extends State<EditorScreen> {
 
   double _zoom = 1.0;
 
+  // Playback
+  Timer? _playTimer;
+  AudioPlayer? _audioPlayer;
+  bool _isPlaying = false;
+  bool _loop = true;
+  List<int> _slots = const [];
+  int _slotPos = 0;
+  int _resumeFrame = 0;
+
   @override
   void initState() {
     super.initState();
@@ -49,11 +62,78 @@ class _EditorScreenState extends State<EditorScreen> {
 
   @override
   void dispose() {
+    _playTimer?.cancel();
+    _audioPlayer?.dispose();
     _projectStore?.save();
     _transform.removeListener(_onTransformChanged);
     _transform.dispose();
     _controller.dispose();
     super.dispose();
+  }
+
+  // --- Playback ---
+  /// Expands frames into playback slots, repeating each by its hold count.
+  List<int> _buildSlots() {
+    final slots = <int>[];
+    final frames = _controller.project.frames;
+    for (var i = 0; i < frames.length; i++) {
+      for (var h = 0; h < frames[i].holdCount; h++) {
+        slots.add(i);
+      }
+    }
+    return slots;
+  }
+
+  void _togglePlay() => _isPlaying ? _stopPlayback() : _startPlayback();
+
+  void _startPlayback() {
+    _slots = _buildSlots();
+    if (_slots.isEmpty) return;
+    _resumeFrame = _controller.currentFrameIndex;
+    _slotPos = 0;
+    _controller.previewFrame(_slots.first);
+    final ms = (1000 / _controller.project.fps).round().clamp(20, 2000);
+    _playTimer = Timer.periodic(Duration(milliseconds: ms), (_) {
+      _slotPos++;
+      if (_slotPos >= _slots.length) {
+        if (_loop) {
+          _slotPos = 0;
+        } else {
+          _stopPlayback();
+          return;
+        }
+      }
+      _controller.previewFrame(_slots[_slotPos]);
+    });
+    _playAudio();
+    setState(() => _isPlaying = true);
+  }
+
+  void _stopPlayback() {
+    _playTimer?.cancel();
+    _playTimer = null;
+    _stopAudio();
+    _controller.previewFrame(_resumeFrame);
+    if (mounted) setState(() => _isPlaying = false);
+  }
+
+  Future<void> _playAudio() async {
+    final audio = _controller.project.audio;
+    if (audio == null) return;
+    try {
+      final player = _audioPlayer ??= AudioPlayer();
+      await player.setReleaseMode(ReleaseMode.loop);
+      await player.stop();
+      await player.play(DeviceFileSource(audio.path));
+    } catch (_) {
+      // Ignore playback errors (e.g. missing file); animation still plays.
+    }
+  }
+
+  Future<void> _stopAudio() async {
+    try {
+      await _audioPlayer?.stop();
+    } catch (_) {}
   }
 
   void _onTransformChanged() {
@@ -65,12 +145,6 @@ class _EditorScreenState extends State<EditorScreen> {
 
   void _resetZoom() {
     _transform.value = Matrix4.identity();
-  }
-
-  void _comingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature coming soon')),
-    );
   }
 
   @override
@@ -96,7 +170,8 @@ class _EditorScreenState extends State<EditorScreen> {
                 onOpenLayers: () => _scaffoldKey.currentState?.openEndDrawer(),
                 onMenu: () =>
                     ImportSheet.show(context, controller: _controller),
-                onExport: () => _comingSoon('Export'),
+                onExport: () =>
+                    ExportSheet.show(context, controller: _controller),
               ),
               Expanded(
                 child: Row(
@@ -118,6 +193,20 @@ class _EditorScreenState extends State<EditorScreen> {
                               percent: zoomPercent,
                               showReset: showReset,
                               onReset: _resetZoom,
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 12,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: _PlaybackControls(
+                                isPlaying: _isPlaying,
+                                loop: _loop,
+                                onTogglePlay: _togglePlay,
+                                onToggleLoop: () =>
+                                    setState(() => _loop = !_loop),
+                              ),
                             ),
                           ),
                           Consumer<EditorController>(
@@ -178,6 +267,51 @@ class _EyedropperBanner extends StatelessWidget {
               icon: const Icon(Icons.close, size: 18),
               onPressed: onCancel,
               tooltip: 'Cancel',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaybackControls extends StatelessWidget {
+  const _PlaybackControls({
+    required this.isPlaying,
+    required this.loop,
+    required this.onTogglePlay,
+    required this.onToggleLoop,
+  });
+
+  final bool isPlaying;
+  final bool loop;
+  final VoidCallback onTogglePlay;
+  final VoidCallback onToggleLoop;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: FabyColors.surfaceHigh.withValues(alpha: 0.92),
+      borderRadius: BorderRadius.circular(24),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
+                color: FabyColors.turquoise,
+              ),
+              iconSize: 34,
+              tooltip: isPlaying ? 'Pause' : 'Play',
+              onPressed: onTogglePlay,
+            ),
+            IconButton(
+              icon: const Icon(Icons.repeat),
+              color: loop ? FabyColors.turquoise : Colors.white54,
+              tooltip: 'Loop',
+              onPressed: onToggleLoop,
             ),
           ],
         ),
