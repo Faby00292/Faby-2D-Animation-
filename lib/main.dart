@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'screens/home/home_screen.dart';
 import 'state/project_store.dart';
+import 'state/settings_store.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -14,8 +15,15 @@ class FabyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<ProjectStore>(
-      create: (_) => ProjectStore(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<ProjectStore>(
+          create: (_) => ProjectStore()..load(),
+        ),
+        ChangeNotifierProvider<SettingsStore>(
+          create: (_) => SettingsStore()..load(),
+        ),
+      ],
       child: MaterialApp(
         title: 'Faby 2D Animation',
         debugShowCheckedModeBanner: false,

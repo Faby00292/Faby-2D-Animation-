@@ -26,6 +26,13 @@ in the roadmap below.
     and softness (hardness → blur); eraser cuts within its own layer.
   - **Timeline**: frame thumbnails with add / delete.
   - **Layers**: up to 10 layers with visibility, lock, opacity and add / delete.
+- **Persistence** — projects are saved to device storage and restored on
+  relaunch.
+- **8 brush engines** — Pencil, Ink, Marker, Airbrush, Watercolor, Pixel, Chalk
+  and Custom, each with a distinct look, plus per-brush **spacing** and
+  **smoothing**, and **saveable custom brushes**.
+- **Full color picker** — HSV wheel + value, RGB sliders, HEX input, preset
+  palette, recent-color history and an **eyedropper** that samples the canvas.
 
 ## Architecture
 
@@ -56,7 +63,7 @@ flutter test         # widget smoke test
 
 ## Roadmap
 
-- **Phase 2** — persistence; full color picker (RGB/HEX/HSV/wheel/palette/
+- **Phase 2** ✅ — persistence; full color picker (RGB/HEX/HSV/wheel/palette/
   history/eyedropper); 8 brush types + custom brushes; spacing/smoothing.
 - **Phase 3** — full timeline (copy/paste/duplicate/insert/hold/duration,
   drag-reorder, multi-select, extend-across-frames).

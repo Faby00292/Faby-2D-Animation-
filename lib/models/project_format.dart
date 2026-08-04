@@ -30,4 +30,13 @@ enum ProjectFormat {
 
   /// e.g. "1920 × 1080".
   String get dimensionsLabel => '$width × $height';
+
+  /// Parses a stored [name] back into a [ProjectFormat], defaulting to
+  /// [youtube1080].
+  static ProjectFormat fromName(String? name) {
+    for (final f in ProjectFormat.values) {
+      if (f.name == name) return f;
+    }
+    return ProjectFormat.youtube1080;
+  }
 }

@@ -2,28 +2,34 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../state/editor_controller.dart';
+import '../../state/settings_store.dart';
 import '../../theme/app_theme.dart';
+import 'brush_settings_sheet.dart';
+import 'color_picker_sheet.dart';
 
-/// Right-hand brush settings panel: color, size, opacity, hardness and ruler.
+/// Right-hand brush settings panel: brush engine, color, size, opacity,
+/// hardness and ruler.
 class RightPanel extends StatelessWidget {
   const RightPanel({super.key});
-
-  static const List<Color> _palette = [
-    Color(0xFF000000),
-    Color(0xFFFFFFFF),
-    Color(0xFF55E4C1),
-    Color(0xFF4F9DFF),
-    Color(0xFF9B6BFF),
-    Color(0xFFFF6B9B),
-    Color(0xFFFF784F),
-    Color(0xFFFFC24F),
-  ];
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<EditorController>();
+    final settings = context.watch<SettingsStore>();
+
+    void openBrush() => BrushSettingsSheet.show(
+          context,
+          controller: context.read<EditorController>(),
+          settings: context.read<SettingsStore>(),
+        );
+    void openColor() => ColorPickerSheet.show(
+          context,
+          controller: context.read<EditorController>(),
+          settings: context.read<SettingsStore>(),
+        );
+
     return Container(
-      width: 208,
+      width: 212,
       decoration: const BoxDecoration(
         color: FabyColors.surface,
         border: Border(left: BorderSide(color: FabyColors.outline)),
@@ -31,20 +37,31 @@ class RightPanel extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
+          _BrushButton(
+            icon: controller.brushType.icon,
+            label: controller.brushType.label,
+            onTap: openBrush,
+          ),
+          const SizedBox(height: 20),
           const _SectionLabel('Brush Color'),
           const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: [
-              for (final color in _palette)
-                _Swatch(
-                  color: color,
-                  selected: controller.brushColor.toARGB32() == color.toARGB32(),
-                  onTap: () => controller.setColor(color),
-                ),
-            ],
-          ),
+          _ColorButton(color: controller.brushColor, onTap: openColor),
+          if (settings.colorHistory.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final color in settings.colorHistory.take(6))
+                  _MiniSwatch(
+                    color: color,
+                    selected: controller.brushColor.toARGB32() ==
+                        color.toARGB32(),
+                    onTap: () => controller.setColor(color),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 22),
           _LabeledSlider(
             label: 'Brush Size',
@@ -85,26 +102,98 @@ class RightPanel extends StatelessWidget {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-  final String text;
+class _BrushButton extends StatelessWidget {
+  const _BrushButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.5,
-        color: Colors.white.withValues(alpha: 0.7),
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: FabyColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: FabyColors.turquoise),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+            const Icon(Icons.tune, size: 18, color: Colors.white54),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _Swatch extends StatelessWidget {
-  const _Swatch({
+class _ColorButton extends StatelessWidget {
+  const _ColorButton({required this.color, required this.onTap});
+
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: FabyColors.surfaceHigh,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white24),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase()}',
+              style: const TextStyle(
+                fontFeatures: [FontFeature.tabularFigures()],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            const Icon(Icons.edit_outlined, size: 18, color: Colors.white54),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniSwatch extends StatelessWidget {
+  const _MiniSwatch({
     required this.color,
     required this.selected,
     required this.onTap,
@@ -119,16 +208,34 @@ class _Swatch extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 32,
-        height: 32,
+        width: 26,
+        height: 26,
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
           border: Border.all(
             color: selected ? FabyColors.turquoise : Colors.white24,
-            width: selected ? 3 : 1,
+            width: selected ? 2.5 : 1,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.5,
+        color: Colors.white.withValues(alpha: 0.7),
       ),
     );
   }

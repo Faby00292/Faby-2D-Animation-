@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../models/brush_type.dart';
 import '../models/frame.dart';
 import '../models/stroke.dart';
 
@@ -7,7 +10,9 @@ import '../models/stroke.dart';
 ///
 /// Strokes are stored in canvas/format coordinates, so the painter scales the
 /// canvas to the given paint [size]; the same painter is reused for full-size
-/// editing and small timeline thumbnails.
+/// editing and small timeline thumbnails. Each [BrushType] renders with a
+/// distinct style — continuous paths for pencil/ink/marker, stamped dabs for
+/// airbrush/watercolor/chalk/pixel.
 class DrawingPainter extends CustomPainter {
   DrawingPainter({
     required this.frame,
@@ -47,21 +52,29 @@ class DrawingPainter extends CustomPainter {
 
   void _drawStroke(Canvas canvas, Stroke stroke) {
     if (stroke.points.isEmpty) return;
+    if (stroke.isEraser) {
+      _drawContinuous(canvas, stroke, eraser: true);
+    } else if (stroke.brushType.isStamp) {
+      _drawStamped(canvas, stroke);
+    } else {
+      _drawContinuous(canvas, stroke, eraser: false);
+    }
+  }
 
+  // --- Continuous path brushes (pencil / ink / marker / custom / eraser) ---
+  void _drawContinuous(Canvas canvas, Stroke stroke, {required bool eraser}) {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = stroke.width
-      ..color = stroke.isEraser
+      ..color = eraser
           ? Colors.black
           : stroke.color.withValues(alpha: stroke.opacity);
 
-    if (stroke.isEraser) {
+    if (eraser) {
       paint.blendMode = BlendMode.clear;
-    }
-
-    if (stroke.hardness < 1.0) {
+    } else if (stroke.hardness < 1.0) {
       final sigma = (1.0 - stroke.hardness) * stroke.width * 0.5;
       if (sigma > 0) {
         paint.maskFilter = MaskFilter.blur(BlurStyle.normal, sigma);
@@ -84,6 +97,113 @@ class DrawingPainter extends CustomPainter {
       path.lineTo(stroke.points[i].dx, stroke.points[i].dy);
     }
     canvas.drawPath(path, paint);
+  }
+
+  // --- Stamped brushes (airbrush / watercolor / chalk / pixel) ---
+  void _drawStamped(Canvas canvas, Stroke stroke) {
+    final rnd = math.Random(stroke.seed);
+    final radius = stroke.width / 2;
+    final step = math.max(1.0, stroke.width * stroke.spacing);
+    for (final point in _dabPositions(stroke.points, step)) {
+      _stampDab(canvas, stroke, point, radius, rnd);
+    }
+  }
+
+  /// Evenly spaced points along the poly-line at [step] intervals.
+  List<Offset> _dabPositions(List<Offset> points, double step) {
+    if (points.length == 1) return [points.first];
+    final out = <Offset>[points.first];
+    var carry = 0.0;
+    for (var i = 1; i < points.length; i++) {
+      final a = points[i - 1];
+      final b = points[i];
+      final seg = (b - a).distance;
+      if (seg == 0) continue;
+      var d = step - carry;
+      while (d <= seg) {
+        final t = d / seg;
+        out.add(Offset(a.dx + (b.dx - a.dx) * t, a.dy + (b.dy - a.dy) * t));
+        d += step;
+      }
+      carry = seg - (d - step);
+    }
+    return out;
+  }
+
+  void _stampDab(
+    Canvas canvas,
+    Stroke stroke,
+    Offset center,
+    double radius,
+    math.Random rnd,
+  ) {
+    final color = stroke.color;
+    switch (stroke.brushType) {
+      case BrushType.pixel:
+        final grid = math.max(1.0, stroke.width);
+        final gx = (center.dx / grid).floor() * grid;
+        final gy = (center.dy / grid).floor() * grid;
+        canvas.drawRect(
+          Rect.fromLTWH(gx, gy, grid, grid),
+          Paint()
+            ..isAntiAlias = false
+            ..color = color.withValues(alpha: stroke.opacity),
+        );
+        break;
+
+      case BrushType.airbrush:
+        canvas.drawCircle(
+          center,
+          radius,
+          Paint()
+            ..color = color.withValues(alpha: stroke.opacity)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.7),
+        );
+        break;
+
+      case BrushType.watercolor:
+        final jitter = Offset(
+          (rnd.nextDouble() - 0.5) * radius * 0.5,
+          (rnd.nextDouble() - 0.5) * radius * 0.5,
+        );
+        final r = radius * (0.8 + rnd.nextDouble() * 0.5);
+        final a = (stroke.opacity * (0.6 + rnd.nextDouble() * 0.6)).clamp(0.0, 1.0);
+        canvas.drawCircle(
+          center + jitter,
+          r,
+          Paint()
+            ..color = color.withValues(alpha: a)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.6),
+        );
+        break;
+
+      case BrushType.chalk:
+        const grains = 6;
+        final grainRadius = math.max(0.6, stroke.width * 0.08);
+        for (var g = 0; g < grains; g++) {
+          final off = Offset(
+            (rnd.nextDouble() - 0.5) * stroke.width,
+            (rnd.nextDouble() - 0.5) * stroke.width,
+          );
+          if (off.distance > radius) continue;
+          final a = (stroke.opacity * (0.3 + rnd.nextDouble() * 0.7))
+              .clamp(0.0, 1.0);
+          canvas.drawCircle(
+            center + off,
+            grainRadius,
+            Paint()..color = color.withValues(alpha: a),
+          );
+        }
+        break;
+
+      default:
+        final paint = Paint()..color = color.withValues(alpha: stroke.opacity);
+        if (stroke.hardness < 1.0) {
+          paint.maskFilter =
+              MaskFilter.blur(BlurStyle.normal, radius * (1 - stroke.hardness));
+        }
+        canvas.drawCircle(center, radius, paint);
+    }
   }
 
   @override

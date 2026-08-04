@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../state/editor_controller.dart';
+import '../state/settings_store.dart';
 import 'drawing_painter.dart';
+import 'frame_sampler.dart';
 
 /// The zoomable drawing surface.
 ///
 /// Wraps the painted page in an [InteractiveViewer] for pinch-zoom (up to
 /// 6400%) and pan. Single-finger input draws via a raw [Listener] (which sees
 /// pointer events regardless of the viewer's gesture recognizers); a second
-/// finger cancels the in-progress stroke and hands off to pinch-zoom.
+/// finger cancels the in-progress stroke and hands off to pinch-zoom. When the
+/// controller is in eyedropper mode, a tap samples a color instead.
 class DrawingCanvas extends StatefulWidget {
   const DrawingCanvas({
     super.key,
@@ -37,6 +41,22 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
     return Size(w, w / aspect);
   }
 
+  Future<void> _pickColor(Offset canvasPoint) async {
+    final controller = widget.controller;
+    final settings = context.read<SettingsStore>();
+    final color = await sampleFrameColor(
+      frame: controller.currentFrame,
+      formatSize: Size(
+        controller.project.format.width.toDouble(),
+        controller.project.format.height.toDouble(),
+      ),
+      canvasPoint: canvasPoint,
+    );
+    controller.setColor(color);
+    controller.setEyedropperMode(false);
+    settings.addColorToHistory(color);
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
@@ -63,6 +83,10 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
           child: Center(
             child: Listener(
               onPointerDown: (event) {
+                if (controller.eyedropperMode) {
+                  _pickColor(toCanvas(event.localPosition));
+                  return;
+                }
                 _pointers++;
                 if (_pointers == 1) {
                   _drawing = true;

@@ -1,22 +1,47 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/frame.dart';
 import '../models/layer.dart';
 import '../models/project.dart';
 import '../models/project_format.dart';
 
-/// In-memory store of the user's projects.
-///
-/// Persistence (shared_preferences / sqflite) is planned for a later phase;
-/// for the vertical slice projects live for the duration of the app session.
+/// Store of the user's projects, persisted to [SharedPreferences] as JSON.
 class ProjectStore extends ChangeNotifier {
+  static const String _key = 'faby_projects';
+
   final List<Project> _projects = <Project>[];
   int _seq = 0;
+  bool _loaded = false;
+  SharedPreferences? _prefs;
 
   List<Project> get projects => List.unmodifiable(_projects);
+  bool get isLoaded => _loaded;
 
   String _id(String prefix) =>
       '$prefix${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
+
+  /// Loads persisted projects. Safe to call once at startup.
+  Future<void> load() async {
+    final prefs = _prefs ??= await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final list = jsonDecode(raw) as List;
+        _projects
+          ..clear()
+          ..addAll(
+            list.map((p) => Project.fromJson(p as Map<String, dynamic>)),
+          );
+      } catch (_) {
+        // Ignore corrupt data and start fresh.
+      }
+    }
+    _loaded = true;
+    notifyListeners();
+  }
 
   /// Creates a project seeded with one frame containing one layer, inserts it
   /// at the top of the list and returns it.
@@ -36,12 +61,22 @@ class ProjectStore extends ChangeNotifier {
       frames: <Frame>[frame],
     );
     _projects.insert(0, project);
+    save();
     notifyListeners();
     return project;
   }
 
   void deleteProject(Project project) {
     _projects.remove(project);
+    save();
     notifyListeners();
+  }
+
+  /// Persists the current project list. Call after edits (e.g. on editor exit).
+  void save() {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    final raw = jsonEncode([for (final p in _projects) p.toJson()]);
+    prefs.setString(_key, raw);
   }
 }

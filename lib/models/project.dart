@@ -22,4 +22,27 @@ class Project {
 
   final List<Frame> frames;
   final DateTime createdAt;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'format': format.name,
+        'fps': fps,
+        'createdAt': createdAt.toIso8601String(),
+        'frames': [for (final f in frames) f.toJson()],
+      };
+
+  factory Project.fromJson(Map<String, dynamic> json) => Project(
+        id: json['id'] as String,
+        name: json['name'] as String? ?? 'Untitled',
+        format: ProjectFormat.fromName(json['format'] as String?),
+        fps: (json['fps'] as num?)?.toInt() ?? 12,
+        createdAt:
+            DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+                DateTime.now(),
+        frames: [
+          for (final f in (json['frames'] as List? ?? const []))
+            Frame.fromJson(f as Map<String, dynamic>),
+        ],
+      );
 }

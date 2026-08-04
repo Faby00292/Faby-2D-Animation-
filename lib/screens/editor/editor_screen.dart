@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../drawing/drawing_canvas.dart';
 import '../../models/project.dart';
 import '../../state/editor_controller.dart';
+import '../../state/project_store.dart';
 import '../../theme/app_theme.dart';
 import 'layers_panel.dart';
 import 'left_toolbar.dart';
@@ -25,6 +26,7 @@ class _EditorScreenState extends State<EditorScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   late final EditorController _controller;
   final TransformationController _transform = TransformationController();
+  ProjectStore? _projectStore;
 
   double _zoom = 1.0;
 
@@ -36,7 +38,16 @@ class _EditorScreenState extends State<EditorScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Captured so we can persist edits from dispose(), where the context may
+    // no longer resolve providers.
+    _projectStore = context.read<ProjectStore>();
+  }
+
+  @override
   void dispose() {
+    _projectStore?.save();
     _transform.removeListener(_onTransformChanged);
     _transform.dispose();
     _controller.dispose();
@@ -102,6 +113,24 @@ class _EditorScreenState extends State<EditorScreen> {
                               onReset: _resetZoom,
                             ),
                           ),
+                          Consumer<EditorController>(
+                            builder: (context, controller, _) {
+                              if (!controller.eyedropperMode) {
+                                return const SizedBox.shrink();
+                              }
+                              return Positioned(
+                                top: 12,
+                                left: 0,
+                                right: 0,
+                                child: Center(
+                                  child: _EyedropperBanner(
+                                    onCancel: () =>
+                                        controller.setEyedropperMode(false),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
@@ -112,6 +141,38 @@ class _EditorScreenState extends State<EditorScreen> {
               const TimelinePanel(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EyedropperBanner extends StatelessWidget {
+  const _EyedropperBanner({required this.onCancel});
+
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: FabyColors.surfaceHigh.withValues(alpha: 0.95),
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.colorize, size: 18, color: FabyColors.turquoise),
+            const SizedBox(width: 8),
+            const Text('Tap the canvas to pick a color'),
+            const SizedBox(width: 4),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close, size: 18),
+              onPressed: onCancel,
+              tooltip: 'Cancel',
+            ),
+          ],
         ),
       ),
     );

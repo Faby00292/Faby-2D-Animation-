@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/brush_preset.dart';
+import '../models/brush_type.dart';
 import '../models/frame.dart';
 import '../models/layer.dart';
 import '../models/project.dart';
@@ -20,11 +22,17 @@ class EditorController extends ChangeNotifier {
 
   // --- Brush / tool settings ---
   EditorTool tool = EditorTool.brush;
+  BrushType brushType = BrushType.ink;
   Color brushColor = const Color(0xFF55E4C1);
-  double brushSize = 12; // canvas pixels
+  double brushSize = 10; // canvas pixels
   double brushOpacity = 1.0;
   double brushHardness = 1.0;
+  double brushSpacing = 0.05; // fraction of width, for stamped brushes
+  double brushSmoothing = 0.4; // 0 = raw input, 1 = heavily smoothed
   bool rulerEnabled = false;
+
+  /// When true, the next canvas tap samples a color instead of drawing.
+  bool eyedropperMode = false;
 
   int _seq = 0;
   Stroke? _activeStroke;
@@ -41,13 +49,54 @@ class EditorController extends ChangeNotifier {
   bool get canRedo => _redoStack.isNotEmpty;
 
   bool get canDraw =>
-      tool.isDrawing && currentLayer.isVisible && !currentLayer.isLocked;
+      !eyedropperMode &&
+      tool.isDrawing &&
+      currentLayer.isVisible &&
+      !currentLayer.isLocked;
 
   // --- Tool / brush mutations ---
   void selectTool(EditorTool value) {
     tool = value;
     notifyListeners();
   }
+
+  /// Selects a brush engine and applies its default parameters.
+  void selectBrushType(BrushType type) {
+    brushType = type;
+    final d = type.defaults;
+    brushSize = d.size;
+    brushOpacity = d.opacity;
+    brushHardness = d.hardness;
+    brushSpacing = d.spacing;
+    if (!tool.isDrawing || tool == EditorTool.eraser) {
+      tool = EditorTool.brush;
+    }
+    notifyListeners();
+  }
+
+  /// Applies a saved custom brush preset (keeps the current color).
+  void applyPreset(BrushPreset preset) {
+    brushType = preset.type;
+    brushSize = preset.size;
+    brushOpacity = preset.opacity;
+    brushHardness = preset.hardness;
+    brushSpacing = preset.spacing;
+    if (!tool.isDrawing || tool == EditorTool.eraser) {
+      tool = EditorTool.brush;
+    }
+    notifyListeners();
+  }
+
+  /// Snapshots the current brush settings into a named preset.
+  BrushPreset toPreset(String name) => BrushPreset(
+        id: _id('brush_'),
+        name: name,
+        type: brushType,
+        size: brushSize,
+        opacity: brushOpacity,
+        hardness: brushHardness,
+        spacing: brushSpacing,
+      );
 
   void setColor(Color value) {
     brushColor = value;
@@ -69,8 +118,23 @@ class EditorController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setSpacing(double value) {
+    brushSpacing = value;
+    notifyListeners();
+  }
+
+  void setSmoothing(double value) {
+    brushSmoothing = value;
+    notifyListeners();
+  }
+
   void toggleRuler() {
     rulerEnabled = !rulerEnabled;
+    notifyListeners();
+  }
+
+  void setEyedropperMode(bool value) {
+    eyedropperMode = value;
     notifyListeners();
   }
 
@@ -83,6 +147,9 @@ class EditorController extends ChangeNotifier {
       width: brushSize,
       opacity: brushOpacity,
       hardness: brushHardness,
+      brushType: brushType,
+      spacing: brushSpacing,
+      seed: DateTime.now().microsecondsSinceEpoch & 0x7fffffff,
       isEraser: tool == EditorTool.eraser,
     );
     _activeStroke = stroke;
@@ -94,7 +161,14 @@ class EditorController extends ChangeNotifier {
   void extendStroke(Offset canvasPoint) {
     final stroke = _activeStroke;
     if (stroke == null) return;
-    stroke.points.add(canvasPoint);
+    // Exponential smoothing: higher smoothing pulls new points toward the last.
+    final last = stroke.points.last;
+    final t = (1.0 - brushSmoothing).clamp(0.05, 1.0);
+    final smoothed = Offset(
+      last.dx + (canvasPoint.dx - last.dx) * t,
+      last.dy + (canvasPoint.dy - last.dy) * t,
+    );
+    stroke.points.add(smoothed);
     notifyListeners();
   }
 
