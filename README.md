@@ -27,7 +27,8 @@ in the roadmap below.
   - **Timeline**: frame thumbnails with add / delete, **copy / paste**,
     **duplicate**, **insert**, **extend-across-frames**, per-frame **hold /
     duration**, **drag-and-drop reordering** and **multi-frame selection**.
-  - **Layers**: up to 10 layers with visibility, lock, opacity and add / delete.
+  - **Layers**: up to 10 layers with visibility, lock, opacity, add / delete,
+    **rename**, **duplicate**, **merge down** and **drag-to-reorder**.
 - **Persistence** — projects are saved to device storage and restored on
   relaunch.
 - **8 brush engines** — Pencil, Ink, Marker, Airbrush, Watercolor, Pixel, Chalk
@@ -69,7 +70,7 @@ flutter test         # widget smoke test
   history/eyedropper); 8 brush types + custom brushes; spacing/smoothing.
 - **Phase 3** ✅ — full timeline (copy/paste/duplicate/insert/hold/duration,
   drag-reorder, multi-select, extend-across-frames).
-- **Phase 4** — full layers (rename/reorder/merge/duplicate).
+- **Phase 4** ✅ — full layers (rename/reorder/merge/duplicate).
 - **Phase 5** — onion skin.
 - **Phase 6** — import PNG/JPG + MP4/GIF (any length) + audio.
 - **Phase 7** — export/render + playback.

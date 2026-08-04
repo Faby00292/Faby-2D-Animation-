@@ -444,4 +444,58 @@ class EditorController extends ChangeNotifier {
     currentFrame.layers[index].opacity = value;
     notifyListeners();
   }
+
+  void renameLayer(int index, String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    currentFrame.layers[index].name = trimmed;
+    notifyListeners();
+  }
+
+  Layer _cloneLayer(Layer source, {required String name}) => Layer(
+        id: _id('layer_'),
+        name: name,
+        opacity: source.opacity,
+        isVisible: source.isVisible,
+        isLocked: source.isLocked,
+        strokes: [for (final s in source.strokes) _cloneStroke(s)],
+      );
+
+  void duplicateLayer(int index) {
+    if (!canAddLayer) return;
+    final source = currentFrame.layers[index];
+    final copy = _cloneLayer(source, name: '${source.name} copy');
+    currentFrame.layers.insert(index + 1, copy);
+    currentLayerIndex = index + 1;
+    notifyListeners();
+  }
+
+  /// Merges the layer at [index] down into the layer beneath it, combining
+  /// their strokes. No-op for the bottom layer.
+  void mergeLayerDown(int index) {
+    if (index <= 0) return;
+    final upper = currentFrame.layers[index];
+    final lower = currentFrame.layers[index - 1];
+    lower.strokes.addAll(upper.strokes);
+    currentFrame.layers.removeAt(index);
+    currentLayerIndex = index - 1;
+    notifyListeners();
+  }
+
+  /// Reorders layers given indices in the *display* order (top layer first),
+  /// matching the reversed list shown in the layers panel. [newDisplayIndex]
+  /// is already adjusted for the removal (onReorderItem semantics).
+  void reorderLayers(int oldDisplayIndex, int newDisplayIndex) {
+    final layers = currentFrame.layers;
+    final active = layers[currentLayerIndex];
+    final display = layers.reversed.toList();
+    final moved = display.removeAt(oldDisplayIndex);
+    display.insert(newDisplayIndex, moved);
+    final reordered = display.reversed.toList();
+    layers
+      ..clear()
+      ..addAll(reordered);
+    currentLayerIndex = layers.indexOf(active);
+    notifyListeners();
+  }
 }

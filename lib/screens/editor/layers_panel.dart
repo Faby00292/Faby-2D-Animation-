@@ -4,15 +4,50 @@ import 'package:provider/provider.dart';
 import '../../state/editor_controller.dart';
 import '../../theme/app_theme.dart';
 
-/// End-drawer listing the current frame's layers (max 10) with visibility,
-/// lock, opacity and add/delete controls.
+/// End-drawer listing the current frame's layers (max 10), top-most first, with
+/// visibility, lock, opacity, drag-to-reorder and a rename / duplicate / merge
+/// / delete menu.
 class LayersPanel extends StatelessWidget {
   const LayersPanel({super.key});
+
+  Future<void> _rename(
+    BuildContext context,
+    EditorController controller,
+    int index,
+    String current,
+  ) async {
+    final textController = TextEditingController(text: current);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename layer'),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Name'),
+          onSubmitted: (v) => Navigator.of(dialogContext).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(textController.text),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    textController.dispose();
+    if (name != null) controller.renameLayer(index, name);
+  }
 
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<EditorController>();
     final layers = controller.currentFrame.layers;
+    final count = layers.length;
 
     return Drawer(
       backgroundColor: FabyColors.surface,
@@ -30,7 +65,7 @@ class LayersPanel extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(
-                    '${layers.length}/${EditorController.maxLayers}',
+                    '$count/${EditorController.maxLayers}',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.5),
                     ),
@@ -46,26 +81,34 @@ class LayersPanel extends StatelessWidget {
             ),
             const Divider(height: 1),
             Expanded(
-              // Layers are shown top-most first, matching the canvas stack.
-              child: ListView.builder(
+              child: ReorderableListView.builder(
+                buildDefaultDragHandles: false,
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: layers.length,
-                itemBuilder: (context, i) {
-                  final index = layers.length - 1 - i;
+                itemCount: count,
+                onReorderItem: controller.reorderLayers,
+                itemBuilder: (context, displayIndex) {
+                  // Display top-most first; map to the model index.
+                  final index = count - 1 - displayIndex;
                   final layer = layers[index];
-                  final selected = controller.currentLayerIndex == index;
                   return _LayerTile(
+                    key: ValueKey(layer.id),
+                    displayIndex: displayIndex,
                     name: layer.name,
                     opacity: layer.opacity,
                     isVisible: layer.isVisible,
                     isLocked: layer.isLocked,
-                    selected: selected,
-                    canDelete: layers.length > 1,
+                    selected: controller.currentLayerIndex == index,
+                    canDelete: count > 1,
+                    canMergeDown: index > 0,
+                    canDuplicate: controller.canAddLayer,
                     onSelect: () => controller.selectLayer(index),
-                    onToggleVisible: () =>
-                        controller.toggleLayerVisible(index),
+                    onToggleVisible: () => controller.toggleLayerVisible(index),
                     onToggleLock: () => controller.toggleLayerLock(index),
                     onOpacity: (v) => controller.setLayerOpacity(index, v),
+                    onRename: () =>
+                        _rename(context, controller, index, layer.name),
+                    onDuplicate: () => controller.duplicateLayer(index),
+                    onMergeDown: () => controller.mergeLayerDown(index),
                     onDelete: () => controller.deleteLayer(index),
                   );
                 },
@@ -78,31 +121,46 @@ class LayersPanel extends StatelessWidget {
   }
 }
 
+enum _LayerAction { rename, duplicate, mergeDown, delete }
+
 class _LayerTile extends StatelessWidget {
   const _LayerTile({
+    super.key,
+    required this.displayIndex,
     required this.name,
     required this.opacity,
     required this.isVisible,
     required this.isLocked,
     required this.selected,
     required this.canDelete,
+    required this.canMergeDown,
+    required this.canDuplicate,
     required this.onSelect,
     required this.onToggleVisible,
     required this.onToggleLock,
     required this.onOpacity,
+    required this.onRename,
+    required this.onDuplicate,
+    required this.onMergeDown,
     required this.onDelete,
   });
 
+  final int displayIndex;
   final String name;
   final double opacity;
   final bool isVisible;
   final bool isLocked;
   final bool selected;
   final bool canDelete;
+  final bool canMergeDown;
+  final bool canDuplicate;
   final VoidCallback onSelect;
   final VoidCallback onToggleVisible;
   final VoidCallback onToggleLock;
   final ValueChanged<double> onOpacity;
+  final VoidCallback onRename;
+  final VoidCallback onDuplicate;
+  final VoidCallback onMergeDown;
   final VoidCallback onDelete;
 
   @override
@@ -119,7 +177,7 @@ class _LayerTile extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
+        padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
         child: Column(
           children: [
             Row(
@@ -135,6 +193,7 @@ class _LayerTile extends StatelessWidget {
                 Expanded(
                   child: GestureDetector(
                     onTap: onSelect,
+                    onDoubleTap: onRename,
                     child: Text(
                       name,
                       maxLines: 1,
@@ -154,10 +213,65 @@ class _LayerTile extends StatelessWidget {
                   onPressed: onToggleLock,
                   tooltip: isLocked ? 'Unlock' : 'Lock',
                 ),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 20),
-                  onPressed: canDelete ? onDelete : null,
-                  tooltip: 'Delete layer',
+                ReorderableDragStartListener(
+                  index: displayIndex,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4),
+                    child: Icon(Icons.drag_indicator,
+                        size: 20, color: Colors.white38),
+                  ),
+                ),
+                PopupMenuButton<_LayerAction>(
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  onSelected: (action) {
+                    switch (action) {
+                      case _LayerAction.rename:
+                        onRename();
+                      case _LayerAction.duplicate:
+                        onDuplicate();
+                      case _LayerAction.mergeDown:
+                        onMergeDown();
+                      case _LayerAction.delete:
+                        onDelete();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: _LayerAction.rename,
+                      child: ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Rename'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _LayerAction.duplicate,
+                      enabled: canDuplicate,
+                      child: const ListTile(
+                        leading: Icon(Icons.copy_all_outlined),
+                        title: Text('Duplicate'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _LayerAction.mergeDown,
+                      enabled: canMergeDown,
+                      child: const ListTile(
+                        leading: Icon(Icons.merge_type),
+                        title: Text('Merge down'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _LayerAction.delete,
+                      enabled: canDelete,
+                      child: const ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Delete'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
