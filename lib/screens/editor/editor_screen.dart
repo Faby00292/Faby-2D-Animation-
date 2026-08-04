@@ -8,6 +8,7 @@ import '../../state/project_store.dart';
 import '../../theme/app_theme.dart';
 import 'layers_panel.dart';
 import 'left_toolbar.dart';
+import 'onion_settings_sheet.dart';
 import 'right_panel.dart';
 import 'timeline_panel.dart';
 import 'top_toolbar.dart';
@@ -87,6 +88,10 @@ class _EditorScreenState extends State<EditorScreen> {
             children: [
               TopToolbar(
                 onClose: () => Navigator.of(context).maybePop(),
+                onOpenOnion: () => OnionSettingsSheet.show(
+                  context,
+                  controller: _controller,
+                ),
                 onOpenLayers: () => _scaffoldKey.currentState?.openEndDrawer(),
                 onMenu: () => _comingSoon('Menu'),
                 onExport: () => _comingSoon('Export'),

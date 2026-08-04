@@ -36,6 +36,8 @@ in the roadmap below.
   **smoothing**, and **saveable custom brushes**.
 - **Full color picker** — HSV wheel + value, RGB sliders, HEX input, preset
   palette, recent-color history and an **eyedropper** that samples the canvas.
+- **Onion skin** — ghosted previous/next frames with configurable frame count,
+  per-direction tint colors and opacity.
 
 ## Architecture
 
@@ -71,6 +73,6 @@ flutter test         # widget smoke test
 - **Phase 3** ✅ — full timeline (copy/paste/duplicate/insert/hold/duration,
   drag-reorder, multi-select, extend-across-frames).
 - **Phase 4** ✅ — full layers (rename/reorder/merge/duplicate).
-- **Phase 5** — onion skin.
+- **Phase 5** ✅ — onion skin.
 - **Phase 6** — import PNG/JPG + MP4/GIF (any length) + audio.
 - **Phase 7** — export/render + playback.

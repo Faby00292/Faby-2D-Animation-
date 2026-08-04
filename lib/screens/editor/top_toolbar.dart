@@ -10,12 +10,14 @@ class TopToolbar extends StatelessWidget {
   const TopToolbar({
     super.key,
     required this.onClose,
+    required this.onOpenOnion,
     required this.onOpenLayers,
     required this.onMenu,
     required this.onExport,
   });
 
   final VoidCallback onClose;
+  final VoidCallback onOpenOnion;
   final VoidCallback onOpenLayers;
   final VoidCallback onMenu;
   final VoidCallback onExport;
@@ -58,6 +60,12 @@ class TopToolbar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.animation),
+            tooltip: 'Onion skin',
+            color: controller.onionEnabled ? FabyColors.turquoise : null,
+            onPressed: onOpenOnion,
           ),
           IconButton(
             icon: const Icon(Icons.layers_outlined),

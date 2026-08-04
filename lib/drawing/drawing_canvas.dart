@@ -27,6 +27,44 @@ class DrawingCanvas extends StatefulWidget {
   State<DrawingCanvas> createState() => _DrawingCanvasState();
 }
 
+/// Builds the tinted onion-skin ghosts for the current editor state, ordered
+/// farthest-first so nearer neighbours render on top.
+List<OnionSkinFrame> _buildOnionFrames(EditorController controller) {
+  if (!controller.onionEnabled) return const [];
+  final frames = controller.project.frames;
+  final current = controller.currentFrameIndex;
+  final count = controller.onionFrameCount;
+  final specs = <OnionSkinFrame>[];
+
+  double opacityFor(int distance) =>
+      (controller.onionOpacity * (count - distance + 1) / count)
+          .clamp(0.0, 1.0);
+
+  if (controller.onionShowPrevious) {
+    for (var d = count; d >= 1; d--) {
+      final idx = current - d;
+      if (idx < 0) continue;
+      specs.add(OnionSkinFrame(
+        frame: frames[idx],
+        color: controller.onionPrevColor,
+        opacity: opacityFor(d),
+      ));
+    }
+  }
+  if (controller.onionShowNext) {
+    for (var d = count; d >= 1; d--) {
+      final idx = current + d;
+      if (idx >= frames.length) continue;
+      specs.add(OnionSkinFrame(
+        frame: frames[idx],
+        color: controller.onionNextColor,
+        opacity: opacityFor(d),
+      ));
+    }
+  }
+  return specs;
+}
+
 class _DrawingCanvasState extends State<DrawingCanvas> {
   int _pointers = 0;
   bool _drawing = false;
@@ -127,12 +165,15 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
                 child: SizedBox(
                   width: display.width,
                   height: display.height,
-                  child: CustomPaint(
-                    size: display,
-                    painter: DrawingPainter(
-                      frame: controller.currentFrame,
-                      formatSize: formatSize,
-                      repaint: controller,
+                  child: ListenableBuilder(
+                    listenable: controller,
+                    builder: (context, _) => CustomPaint(
+                      size: display,
+                      painter: DrawingPainter(
+                        frame: controller.currentFrame,
+                        formatSize: formatSize,
+                        onionFrames: _buildOnionFrames(controller),
+                      ),
                     ),
                   ),
                 ),

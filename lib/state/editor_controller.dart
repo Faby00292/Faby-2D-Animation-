@@ -34,6 +34,15 @@ class EditorController extends ChangeNotifier {
   /// When true, the next canvas tap samples a color instead of drawing.
   bool eyedropperMode = false;
 
+  // --- Onion skin settings ---
+  bool onionEnabled = false;
+  bool onionShowPrevious = true;
+  bool onionShowNext = true;
+  int onionFrameCount = 1; // frames shown in each enabled direction (1..5)
+  Color onionPrevColor = const Color(0xFFFF5A5A);
+  Color onionNextColor = const Color(0xFF4F9DFF);
+  double onionOpacity = 0.35;
+
   int _seq = 0;
   Stroke? _activeStroke;
   final List<Stroke> _redoStack = <Stroke>[];
@@ -137,6 +146,47 @@ class EditorController extends ChangeNotifier {
 
   void setEyedropperMode(bool value) {
     eyedropperMode = value;
+    notifyListeners();
+  }
+
+  // --- Onion skin mutations ---
+  void toggleOnion() {
+    onionEnabled = !onionEnabled;
+    notifyListeners();
+  }
+
+  void setOnionEnabled(bool value) {
+    onionEnabled = value;
+    notifyListeners();
+  }
+
+  void setOnionShowPrevious(bool value) {
+    onionShowPrevious = value;
+    notifyListeners();
+  }
+
+  void setOnionShowNext(bool value) {
+    onionShowNext = value;
+    notifyListeners();
+  }
+
+  void setOnionFrameCount(int value) {
+    onionFrameCount = value.clamp(1, 5);
+    notifyListeners();
+  }
+
+  void setOnionPrevColor(Color value) {
+    onionPrevColor = value;
+    notifyListeners();
+  }
+
+  void setOnionNextColor(Color value) {
+    onionNextColor = value;
+    notifyListeners();
+  }
+
+  void setOnionOpacity(double value) {
+    onionOpacity = value.clamp(0.0, 1.0);
     notifyListeners();
   }
 

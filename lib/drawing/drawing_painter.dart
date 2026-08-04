@@ -6,22 +6,39 @@ import '../models/brush_type.dart';
 import '../models/frame.dart';
 import '../models/stroke.dart';
 
+/// A neighbouring frame rendered as a tinted onion-skin ghost beneath the
+/// current frame.
+class OnionSkinFrame {
+  const OnionSkinFrame({
+    required this.frame,
+    required this.color,
+    required this.opacity,
+  });
+
+  final Frame frame;
+  final Color color;
+  final double opacity;
+}
+
 /// Renders a [Frame]'s visible layers (bottom to top) onto the canvas.
 ///
 /// Strokes are stored in canvas/format coordinates, so the painter scales the
 /// canvas to the given paint [size]; the same painter is reused for full-size
 /// editing and small timeline thumbnails. Each [BrushType] renders with a
 /// distinct style — continuous paths for pencil/ink/marker, stamped dabs for
-/// airbrush/watercolor/chalk/pixel.
+/// airbrush/watercolor/chalk/pixel. Optional [onionFrames] are drawn as tinted
+/// ghosts beneath the current frame (never in thumbnails).
 class DrawingPainter extends CustomPainter {
   DrawingPainter({
     required this.frame,
     required this.formatSize,
+    this.onionFrames = const [],
     super.repaint,
   });
 
   final Frame frame;
   final Size formatSize;
+  final List<OnionSkinFrame> onionFrames;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -34,7 +51,31 @@ class DrawingPainter extends CustomPainter {
     final pageRect = Offset.zero & formatSize;
     canvas.drawRect(pageRect, Paint()..color = Colors.white);
 
-    for (final layer in frame.layers) {
+    // Onion skins: draw each neighbour's strokes (no page background), tinted
+    // to a single color via a src-atop color filter, at reduced opacity.
+    for (final onion in onionFrames) {
+      canvas.saveLayer(
+        pageRect,
+        Paint()..color = Colors.white.withValues(alpha: onion.opacity),
+      );
+      canvas.saveLayer(
+        pageRect,
+        Paint()..colorFilter = ColorFilter.mode(onion.color, BlendMode.srcATop),
+      );
+      _paintContent(canvas, onion.frame);
+      canvas.restore();
+      canvas.restore();
+    }
+
+    _paintContent(canvas, frame);
+
+    canvas.restore();
+  }
+
+  /// Paints a frame's visible layers and strokes (no page background).
+  void _paintContent(Canvas canvas, Frame source) {
+    final pageRect = Offset.zero & formatSize;
+    for (final layer in source.layers) {
       if (!layer.isVisible) continue;
       // Isolate each layer so eraser strokes only cut within their own layer.
       canvas.saveLayer(
@@ -46,8 +87,6 @@ class DrawingPainter extends CustomPainter {
       }
       canvas.restore();
     }
-
-    canvas.restore();
   }
 
   void _drawStroke(Canvas canvas, Stroke stroke) {
